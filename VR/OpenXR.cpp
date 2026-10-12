@@ -80,6 +80,7 @@ namespace
 	XrTime DisplayTime = 0;
 	float DisplayRefresh = 72.f;
 	bool PerfSettings = false;
+	bool BDControllers = false;
 	
 	// Touch controller input.
 	XrActionSet ActionSet = XR_NULL_HANDLE;
@@ -152,6 +153,12 @@ namespace
 		std::vector<const char*> enabled;
 		enabled.push_back( XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME );
 		enabled.push_back( XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME );
+		if( HasExtension( props, "XR_BD_controller_interaction" ) )
+		{
+			// PICO 4 / Neo 3 controllers (same button layout as Touch).
+			enabled.push_back( "XR_BD_controller_interaction" );
+			BDControllers = true;
+		}
 		if( HasExtension( props, "XR_FB_display_refresh_rate" ) )
 			enabled.push_back( "XR_FB_display_refresh_rate" );
 		if( HasExtension( props, XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME ) )
@@ -254,6 +261,18 @@ namespace
 		profile.countSuggestedBindings = suggested.size();
 		profile.suggestedBindings = suggested.data();
 		XR_CHECK( xrSuggestInteractionProfileBindings( Instance, &profile ) );
+		
+		// PICO: the same paths on the ByteDance profiles (optional, runtime decides which one is active).
+		if( BDControllers )
+		{
+			const char *pico_profiles[] = { "/interaction_profiles/bytedance/pico4_controller", "/interaction_profiles/bytedance/pico_neo3_controller" };
+			for( size_t i = 0; i < sizeof(pico_profiles) / sizeof(pico_profiles[0]); i ++ )
+			{
+				profile.interactionProfile = Path( pico_profiles[ i ] );
+				XrResult result = xrSuggestInteractionProfileBindings( Instance, &profile );
+				printf( "OpenXR: %s controller bindings for %s\n", XR_SUCCEEDED(result) ? "added" : "no", pico_profiles[ i ] );
+			}
+		}
 		return true;
 	}
 	

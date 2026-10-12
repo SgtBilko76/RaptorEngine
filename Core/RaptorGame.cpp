@@ -122,6 +122,7 @@ bool Raptor::PreMain( int bits )
 // ---------------------------------------------------------------------------
 
 #include "RaptorGame.h"
+#include "VirtualKeyboard.h"
 
 #include <cmath>
 #include "RaptorDefs.h"
@@ -389,6 +390,8 @@ void RaptorGame::Run( void )
 			{
 				// Keep track of input and mouse position events.
 				Mouse.TrackEvent( &event );
+				if( VirtualKeyboard::HandleEvent( &event ) )
+					continue;  // Laser click on the VR on-screen keyboard.
 				Keys.TrackEvent( &event );
 				Joy.TrackEvent( &event );
 				Input.Update();
@@ -576,6 +579,9 @@ void RaptorGame::Draw( void )
 		Console.MessageFont->DrawText( fps_str, Gfx.W - 1, Gfx.H,     Font::ALIGN_BOTTOM_RIGHT, 0.f,0.f,0.f,0.8f, UIScale );
 		Console.MessageFont->DrawText( fps_str, Gfx.W - 2, Gfx.H - 1, Font::ALIGN_BOTTOM_RIGHT, 1.f,1.f,1.f,1.f,  UIScale );
 	}
+	
+	// VR on-screen keyboard while a text box is selected.
+	VirtualKeyboard::Draw();
 	
 	// Draw console and mouse cursor last.
 	Console.Draw();
