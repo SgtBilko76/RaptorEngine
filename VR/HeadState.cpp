@@ -7,6 +7,10 @@
 #include "RaptorGame.h"
 #include "Notification.h"
 
+#ifdef XWR_OPENXR
+	#include "OpenXR.h"
+#endif
+
 
 HeadState::HeadState( void )
 {
@@ -18,6 +22,9 @@ HeadState::HeadState( void )
 #ifndef NO_VR
 	m_pHMD = NULL;
 	m_pRenderModels = NULL;
+#endif
+#ifdef XWR_OPENXR
+	EyeHandleL = EyeHandleR = 0;
 #endif
 	
 	Recenter();
@@ -48,7 +55,27 @@ void HeadState::StartVR( void )
 		Raptor::Game->Gfx.Restart();
 	}
 	
-#ifndef NO_VR
+#ifdef XWR_OPENXR
+	int w = 0, h = 0;
+	if( ! XR::Init( &w, &h ) )
+	{
+		Raptor::Game->Console.Print( "Unable to start OpenXR.", TextConsole::MSG_ERROR );
+		return;
+	}
+	
+	// The engine's eye framebuffers keep their own texture (unused), but render into the OpenXR swapchain
+	// images: HeadState::Draw swaps in the acquired image's framebuffer name every frame.
+	EyeL = Raptor::Game->Res.GetFramebuffer( "vr_l", w, h );
+	EyeR = Raptor::Game->Res.GetFramebuffer( "vr_r", w, h );
+	if( !( EyeL && EyeR ) )
+		return;
+	EyeHandleL = EyeL->FramebufferHandle;
+	EyeHandleR = EyeR->FramebufferHandle;
+	EyeL->UseFrustum = EyeR->UseFrustum = true;
+	EyeL->OffsetX = EyeR->OffsetX = 0;
+	
+	VR = true;
+#elif ! defined(NO_VR)
 	vr::EVRInitError eError = vr::VRInitError_None;
 	m_pHMD = vr::VR_Init( &eError, vr::VRApplication_Scene );
 	
@@ -97,7 +124,14 @@ void HeadState::StartVR( void )
 
 void HeadState::StopVR( void )
 {
-#ifndef NO_VR
+#ifdef XWR_OPENXR
+	// Give the engine framebuffers their own names back before they are deleted.
+	if( EyeL && EyeHandleL )
+		EyeL->FramebufferHandle = EyeHandleL;
+	if( EyeR && EyeHandleR )
+		EyeR->FramebufferHandle = EyeHandleR;
+	EyeHandleL = EyeHandleR = 0;
+#elif ! defined(NO_VR)
 	if( m_pHMD )
 	{
 		vr::VR_Shutdown();
@@ -128,6 +162,11 @@ void HeadState::StopVR( void )
 
 void HeadState::RestartVR( void )
 {
+#ifdef XWR_OPENXR
+	// The OpenXR session lives as long as the app; nothing to restart once it runs.
+	if( VR )
+		return;
+#endif
 	StopVR();
 	StartVR();
 }
@@ -135,7 +174,10 @@ void HeadState::RestartVR( void )
 
 void HeadState::Recenter( void )
 {
-#ifndef NO_VR
+#ifdef XWR_OPENXR
+	if( VR )
+		XR::Recenter();
+#elif ! defined(NO_VR)
 	if( VR )
 		vr::VRSystem()->ResetSeatedZeroPose();
 #endif
@@ -150,12 +192,81 @@ void HeadState::Recenter( void )
 }
 
 
+#ifdef XWR_OPENXR
+static void SetViewOffset( Pos3D *offset, const XR::EyeView *view )
+{
+	offset->SetPos( view->Pos[0], view->Pos[1], view->Pos[2] );
+	offset->SetUpVec( view->Up[0], view->Up[1], view->Up[2] );
+	offset->SetFwdVec( view->Fwd[0], view->Fwd[1], view->Fwd[2] );
+}
+#endif
+
+
 void HeadState::Draw( void )
 {
 	if( ! Initialized )
 		Initialize();
 	
-#ifndef NO_VR
+#ifdef XWR_OPENXR
+	if( ! VR )
+		return;
+	
+	if( XR::ExitRequested() )
+	{
+		Raptor::Game->Quit();
+		return;
+	}
+	
+	if( ! XR::BeginFrame() )
+	{
+		// Session not visible (or not running yet): keep the game ticking without drawing.
+		XR::EndFrame();
+		return;
+	}
+	
+	const XR::EyeView *head = XR::Head();
+	Current.SetPos( head->Pos[0], head->Pos[1], head->Pos[2] );
+	Current.SetUpVec( head->Up[0], head->Up[1], head->Up[2] );
+	Current.SetFwdVec( head->Fwd[0], head->Fwd[1], head->Fwd[2] );
+	
+	double frame_time = Raptor::Game->FrameTime;
+	Framebuffer *eyes[ 2 ] = { EyeL, EyeR };
+	for( int e = 0; e < 2; e ++ )
+	{
+		Framebuffer *fb = eyes[ e ];
+		unsigned int fbo = XR::AcquireEye( e );
+		if( ! fbo )
+			continue;
+		
+		// Each eye renders from its own tracked pose with its own asymmetric frustum (no separation/offset hacks).
+		const XR::EyeView *view = XR::Eye( e );
+		fb->FramebufferHandle = fbo;
+		fb->FrustumLeft  = view->TanLeft;
+		fb->FrustumRight = view->TanRight;
+		fb->FrustumDown  = view->TanDown;
+		fb->FrustumUp    = view->TanUp;
+		SetViewOffset( &(Raptor::Game->Cam.Offset), view );
+		
+		Raptor::Game->Gfx.DrawTo = fb;
+		Raptor::Game->Gfx.SelectDefaultFramebuffer();
+		Raptor::Game->Draw();
+		Raptor::Game->FrameTime = 0.;  // Prevent multi-render side effects on the second eye.
+		
+		XR::ReleaseEye( e );
+	}
+	
+	// Leave the head (center eye) pose for game logic that reads the camera offset.
+	SetViewOffset( &(Raptor::Game->Cam.Offset), head );
+	
+	XR::EndFrame();
+	
+	// Restore default draw conditions.
+	EyeL->FramebufferHandle = EyeHandleL;
+	EyeR->FramebufferHandle = EyeHandleR;
+	Raptor::Game->FrameTime = frame_time;
+	Raptor::Game->Gfx.DrawTo = NULL;
+	Raptor::Game->Gfx.SelectDefaultFramebuffer();
+#elif ! defined(NO_VR)
 	if( ! VR )
 		return;
 	

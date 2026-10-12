@@ -21,6 +21,9 @@ Framebuffer::Framebuffer( int x, int y, GLint texture_filter )
 	AllocW = 0;
 	AllocH = 0;
 	OffsetX = 0;
+	UseFrustum = false;
+	FrustumLeft = FrustumDown = -1.;
+	FrustumRight = FrustumUp = 1.;
 	
 	W = x ? x : FRAMEBUFFER_DEFAULT_RES;
 	H = y ? y : W;
@@ -325,7 +328,13 @@ void Framebuffer::Setup3D( double fov_w, double cam_x, double cam_y, double cam_
 	glEnable( GL_DEPTH_TEST );
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity();
-	gluPerspective( fov_w / aspect_ratio, aspect_ratio, Raptor::Game->Gfx.ZNear, Raptor::Game->Gfx.ZFar );
+	if( UseFrustum )
+	{
+		double z_near = Raptor::Game->Gfx.ZNear;
+		glFrustum( FrustumLeft * z_near, FrustumRight * z_near, FrustumDown * z_near, FrustumUp * z_near, z_near, Raptor::Game->Gfx.ZFar );
+	}
+	else
+		gluPerspective( fov_w / aspect_ratio, aspect_ratio, Raptor::Game->Gfx.ZNear, Raptor::Game->Gfx.ZFar );
 	glMatrixMode( GL_MODELVIEW );
 	glLoadIdentity();
 	gluLookAt( cam_x, cam_y, cam_z,  cam_look_x, cam_look_y, cam_look_z,  cam_up_x, cam_up_y, cam_up_z );

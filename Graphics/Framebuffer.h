@@ -27,6 +27,10 @@ public:
 	bool ForcePowerOfTwo;
 	Clock LoadedTime;
 	
+	// OpenXR: explicit asymmetric per-eye frustum (tangents of the FOV angles) instead of FOV + OffsetX.
+	bool UseFrustum;
+	double FrustumLeft, FrustumRight, FrustumDown, FrustumUp;
+	
 	Framebuffer( int x = FRAMEBUFFER_DEFAULT_RES, int y = 0, GLint texture_filter = GL_LINEAR );
 	virtual ~Framebuffer();
 	

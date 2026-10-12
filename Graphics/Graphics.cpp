@@ -11,6 +11,9 @@
 #include "ResourceManager.h"
 #include "ClientConfig.h"
 #include "RaptorGame.h"
+#ifdef __ANDROID__
+#include "AndroidPort.h"
+#endif
 
 
 Graphics::Graphics( void )
@@ -203,8 +206,12 @@ void Graphics::SetMode( int x, int y, int bpp, bool fullscreen, int fsaa, int af
 	}
 	
 	// The current OpenGL context will be invalid, so clear all textures from the ResourceManager first.
+	#ifdef __ANDROID__
+	if( ! Screen )  // Android: one window + GL context for the app's lifetime (gl4es sits on it).
+	#endif
 	Raptor::Game->Res.DeleteGraphics();
 	
+	#ifndef __ANDROID__
 	// Free the current screen.
 	if( Screen )
 	{
@@ -214,8 +221,9 @@ void Graphics::SetMode( int x, int y, int bpp, bool fullscreen, int fsaa, int af
 			SDL_FreeSurface( Screen );
 		#endif
 	}
+	#endif
 	
-	#ifndef __APPLE__
+	#if ! defined(__APPLE__) && ! defined(__ANDROID__)
 		// Set the titlebar icon.
 		SDL_Surface *icon = SDL_LoadBMP( Raptor::Game->Res.Find("icon.bmp").c_str() );
 		if( icon )
@@ -230,7 +238,26 @@ void Graphics::SetMode( int x, int y, int bpp, bool fullscreen, int fsaa, int af
 	#endif
 	
 	// Create a new screen.
-	#if SDL_VERSION_ATLEAST(2,0,0)
+	#if defined(__ANDROID__)
+		if( ! Screen )
+		{
+			// gl4es translates the engine's desktop GL onto an OpenGL ES 3.2 context (also used by OpenXR).
+			SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES );
+			SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
+			SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 2 );
+			SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
+			SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8 );
+			SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
+			SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 24 );
+			Screen = SDL_CreateWindow( Raptor::Game->Game.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, x, y, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN );
+			if( Screen && SDL_GL_CreateContext( Screen ) )
+			{
+				set_getprocaddress( (void *(*)(const char *)) SDL_GL_GetProcAddress );
+				set_getmainfbsize( Raptor::AndroidMainFBSize );
+				initialize_gl4es();
+			}
+		}
+	#elif SDL_VERSION_ATLEAST(2,0,0)
 		Uint32 screen_flags = Fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_RESIZABLE;
 		if( Fullscreen && DesktopW && DesktopH && x && y && ((x < DesktopW) || (y < DesktopH)) )
 			screen_flags = SDL_WINDOW_FULLSCREEN;

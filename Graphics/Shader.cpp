@@ -326,10 +326,17 @@ ShaderComponent::ShaderComponent( ShaderComponentType type, std::string filename
 		ShaderHandle = glCreateShader( Type );
 		if( ShaderHandle )
 		{
+			std::string file_source = File::AsString( FileName.c_str() );
+			
 			// First add definitions.
 			SourceCode = std::string("#version ") + Raptor::Game->Cfg.SettingAsString("g_shader_version","110") + std::string("\n");
 			for( std::map<std::string,std::string>::iterator def_iter = defs.begin(); def_iter != defs.end(); def_iter ++ )
 			{
+				#ifdef __ANDROID__
+					// gl4es expands macros inside #undef lines, so leave out definitions the shader overrides itself.
+					if( file_source.find( std::string("#undef ") + def_iter->first ) != std::string::npos )
+						continue;
+				#endif
 				if( Str::EqualsInsensitive( def_iter->second, "true" ) )
 					SourceCode += std::string("#define ") + def_iter->first + std::string(" 1\n");
 				else if( Str::EqualsInsensitive( def_iter->second, "false" ) )
@@ -339,7 +346,7 @@ ShaderComponent::ShaderComponent( ShaderComponentType type, std::string filename
 			}
 			
 			// Load the source code from a file.
-			SourceCode += File::AsString( FileName.c_str() );
+			SourceCode += file_source;
 			const GLchar *source_code_cstr = SourceCode.c_str();
 			glShaderSource( ShaderHandle, 1, (const GLchar **) &(source_code_cstr), NULL );
 			

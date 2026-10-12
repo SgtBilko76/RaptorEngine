@@ -6,6 +6,20 @@
 
 #include "PlatformSpecific.h"
 
+#ifdef __ANDROID__
+	// Meta Quest: desktop OpenGL calls are translated to OpenGL ES by gl4es (external/gl4es).
+	#ifndef NO_GLEW
+		#define NO_GLEW 1
+	#endif
+	#ifndef GL_GLEXT_PROTOTYPES
+		#define GL_GLEXT_PROTOTYPES 1
+	#endif
+	#include <GL/gl.h>
+	#include <GL/glu.h>
+	#include <GL/glext.h>
+	#include <gl4esinit.h>
+#endif
+
 #ifndef NO_GLEW
 	#ifdef __APPLE__
 		#include <GLEW/glew.h>

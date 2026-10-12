@@ -7,6 +7,9 @@
 #include <cstddef>
 #include <cmath>
 #include <fstream>
+#ifdef __ANDROID__
+#include <unistd.h>
+#endif
 #include "Str.h"
 #include "File.h"
 #include "Endian.h"
@@ -560,19 +563,47 @@ Shader *ResourceManager::LoadShader( const std::string &name )
 }
 
 
+#ifdef __ANDROID__
+// SDL on Android opens relative paths from the APK assets, so hand out absolute paths into the data folder.
+static const std::string &DataPrefix( void )
+{
+	static std::string prefix;
+	if( prefix.empty() )
+	{
+		char buffer[ 1024 ] = "";
+		if( getcwd( buffer, sizeof(buffer) ) )
+			prefix = std::string( buffer ) + "/";
+	}
+	return prefix;
+}
+static std::string AbsolutePath( const std::string &path )
+{
+	if( path.empty() || (path[ 0 ] == '/') )
+		return path;
+	return DataPrefix() + path;
+}
+#else
+#define AbsolutePath(path) (path)
+#endif
+
+
 std::string ResourceManager::Find( const std::string &name ) const
 {
 	// Leading slash specifies an absolute path within game directory (ignore SearchPath).
 	// Double-leading slash specifies an absolute path in file system.
+	#ifdef __ANDROID__
+		if( (name[ 0 ] == '/') && (name.compare( 0, DataPrefix().length(), DataPrefix() ) == 0) )
+			return name;  // Already an absolute path into the data folder (found earlier).
+	#endif
 	if( name[ 0 ] == '/' )
-		return name.substr( 1 );
+		return AbsolutePath( name.substr( 1 ) );
 	
 	// Search for all possible occurances in SearchPath order, and return the first found.
 	for( std::deque<std::string>::const_iterator path_iter = SearchPath.begin(); path_iter != SearchPath.end(); path_iter ++ )
 	{
 		std::string path = *path_iter + "/" + name;
 		if( File::Exists(path.c_str()) )
-			return path;
+			return AbsolutePath( path );
 	}
 	
 	// If not found, just return the name again.

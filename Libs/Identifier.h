@@ -12,6 +12,12 @@ class IdentifierError;
 #include <exception>
 
 
+class IdentifierError : public std::exception
+{
+	const char *what() const throw();
+};
+
+
 template <typename T>
 class Identifier
 {
@@ -75,8 +81,3 @@ public:
 	}
 };
 
-
-class IdentifierError : public std::exception
-{
-	const char *what() const throw();
-};

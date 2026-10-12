@@ -40,6 +40,9 @@ public:
 	vr::IVRRenderModels *m_pRenderModels;
 	vr::TrackedDevicePose_t m_rTrackedDevicePose[ vr::k_unMaxTrackedDeviceCount ];
 #endif
+#ifdef XWR_OPENXR
+	unsigned int EyeHandleL, EyeHandleR;  // The eye framebuffers' own names (swapped for OpenXR images while drawing).
+#endif
 	
 	HeadState( void );
 	virtual ~HeadState();
