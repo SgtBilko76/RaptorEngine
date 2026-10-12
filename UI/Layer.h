@@ -30,6 +30,8 @@ public:
 	bool Visible;
 	bool ReadControls;
 	bool Draggable;
+	bool XRScene;      // VR menus: draws 3D surroundings (scene pass)
+	bool XRSceneOnly;  // VR menus: has no flat UI (skipped on the menu panel)
 	uint8_t UIScaleMode;
 	std::string Name;
 	

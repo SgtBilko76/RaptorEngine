@@ -132,6 +132,7 @@ bool Raptor::PreMain( int bits )
 
 RaptorGame::RaptorGame( std::string game, std::string version, RaptorServer *server )
 {
+	XRPass = 0;
 	Game = game;
 	Version = version;
 	DefaultPort = 7000;
@@ -538,8 +539,13 @@ void RaptorGame::Run( void )
 void RaptorGame::Draw( void )
 {
 	// Clear the framebuffer and draw all layers.
-	Gfx.Clear();
+	if( XRPass == 2 )
+		Gfx.Clear( 0.f, 0.f, 0.f, 0.f );  // Menu panel: transparent where there is no UI.
+	else
+		Gfx.Clear();
 	Layers.Draw();
+	if( XRPass == 1 )
+		return;  // VR surroundings: no flat UI.
 	
 	// Draw text overlay (such as "Connecting to...").
 	if( WaitText.length() )

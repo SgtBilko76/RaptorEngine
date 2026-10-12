@@ -68,6 +68,7 @@ public:
 	double MaxFPS;
 	
 	double FrameTime;
+	int XRPass;  // 0 = normal, 1 = VR surroundings only (eyes), 2 = flat UI only (menu panel)
 	MouseState Mouse;
 	KeyboardState Keys;
 	JoystickManager Joy;

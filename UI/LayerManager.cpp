@@ -30,9 +30,16 @@ void LayerManager::Draw( void )
 		(*layer_iter)->UpdateCalcRects();
 		if( (*layer_iter)->Visible )
 		{
+			// VR menus are drawn in two passes: 3D surroundings in stereo, then the flat UI on a panel.
+			int pass = Raptor::Game->XRPass;
+			if( (pass == 1) && ! (*layer_iter)->XRScene )
+				continue;
+			if( (pass == 2) && (*layer_iter)->XRSceneOnly )
+				continue;
 			(*layer_iter)->DrawSetup();
 			(*layer_iter)->Draw();
-			(*layer_iter)->DrawElements();
+			if( (pass != 1) || (*layer_iter)->XRSceneOnly )
+				(*layer_iter)->DrawElements();
 		}
 	}
 }

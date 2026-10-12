@@ -235,24 +235,10 @@ void HeadState::Draw( void )
 	double frame_time = Raptor::Game->FrameTime;
 	Framebuffer *eyes[ 2 ] = { EyeL, EyeR };
 	
-	// Menus (mouse cursor shown) go on a flat world-fixed panel instead of following the head.
-	unsigned int panel_fbo = Raptor::Game->Mouse.ShowCursor ? XR::AcquirePanel() : 0;
-	if( panel_fbo )
-	{
-		Framebuffer *fb = EyeR;
-		fb->FramebufferHandle = panel_fbo;
-		fb->UseFrustum = false;
-		Raptor::Game->Cam.Offset.SetPos( 0., 0., 0. );
-		Raptor::Game->Cam.Offset.SetUpVec( 0., 1., 0. );
-		Raptor::Game->Cam.Offset.SetFwdVec( 1., 0., 0. );
-		Raptor::Game->Gfx.DrawTo = fb;
-		Raptor::Game->Gfx.SelectDefaultFramebuffer();
-		Raptor::Game->Draw();
-		fb->UseFrustum = true;
-		XR::ReleasePanel();
-	}
-	
-	for( int e = 0; panel_fbo ? false : (e < 2); e ++ )
+	// Menus (mouse cursor shown): the 3D surroundings (menu background, or the paused game) are drawn
+	// in stereo around the player, and the flat UI on a world-fixed panel in front of them.
+	bool menu = Raptor::Game->Mouse.ShowCursor;
+	for( int e = 0; e < 2; e ++ )
 	{
 		Framebuffer *fb = eyes[ e ];
 		unsigned int fbo = XR::AcquireEye( e );
@@ -268,12 +254,32 @@ void HeadState::Draw( void )
 		fb->FrustumUp    = view->TanUp;
 		SetViewOffset( &(Raptor::Game->Cam.Offset), view );
 		
+		Raptor::Game->XRPass = menu ? 1 : 0;
 		Raptor::Game->Gfx.DrawTo = fb;
 		Raptor::Game->Gfx.SelectDefaultFramebuffer();
 		Raptor::Game->Draw();
-		Raptor::Game->FrameTime = 0.;  // Prevent multi-render side effects on the second eye.
+		Raptor::Game->XRPass = 0;
+		Raptor::Game->FrameTime = 0.;  // Prevent multi-render side effects on the other draws.
 		
 		XR::ReleaseEye( e );
+	}
+	
+	unsigned int panel_fbo = menu ? XR::AcquirePanel() : 0;
+	if( panel_fbo )
+	{
+		Framebuffer *fb = EyeR;
+		fb->FramebufferHandle = panel_fbo;
+		fb->UseFrustum = false;
+		Raptor::Game->Cam.Offset.SetPos( 0., 0., 0. );
+		Raptor::Game->Cam.Offset.SetUpVec( 0., 1., 0. );
+		Raptor::Game->Cam.Offset.SetFwdVec( 1., 0., 0. );
+		Raptor::Game->XRPass = 2;
+		Raptor::Game->Gfx.DrawTo = fb;
+		Raptor::Game->Gfx.SelectDefaultFramebuffer();
+		Raptor::Game->Draw();
+		Raptor::Game->XRPass = 0;
+		fb->UseFrustum = true;
+		XR::ReleasePanel();
 	}
 	
 	// Leave the head (center eye) pose for game logic that reads the camera offset.

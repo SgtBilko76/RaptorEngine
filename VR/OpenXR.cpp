@@ -91,6 +91,7 @@ namespace
 	
 	EyeSwapchain Eyes[ 3 ];  // left, right, menu panel
 	bool PanelUsed = false;
+	bool EyesSubmitted = false;
 	XrPosef AimPoses[ 2 ];
 	const float PanelDist = 1.8f, PanelWidth = 1.9f;  // meters
 	XrView Views[ 2 ];
@@ -796,6 +797,7 @@ unsigned int XR::AcquireEye( int e )
 	if( XR_FAILED( xrWaitSwapchainImage( eye->Handle, &wait ) ) )
 		return 0;
 	eye->Acquired = true;
+	EyesSubmitted = true;
 	
 	XrCompositionLayerProjectionView *view = &LayerViews[ e ? 1 : 0 ];
 	*view = { XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW };
@@ -849,16 +851,23 @@ void XR::EndFrame( void )
 	quad.size.width = PanelWidth;
 	quad.size.height = PanelWidth * panel->H / (float) panel->W;
 	
-	const XrCompositionLayerBaseHeader *layers[ 1 ] = { PanelUsed ? (const XrCompositionLayerBaseHeader*) &quad : (const XrCompositionLayerBaseHeader*) &layer };
+	// Stereo surroundings first, the menu panel (if any) on top.
+	const XrCompositionLayerBaseHeader *layers[ 2 ];
+	uint32_t layer_count = 0;
+	if( EyesSubmitted )
+		layers[ layer_count ++ ] = (const XrCompositionLayerBaseHeader*) &layer;
+	if( PanelUsed )
+		layers[ layer_count ++ ] = (const XrCompositionLayerBaseHeader*) &quad;
 	
 	XrFrameEndInfo end = { XR_TYPE_FRAME_END_INFO };
 	end.displayTime = DisplayTime;
 	end.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-	end.layerCount = ShouldRender ? 1 : 0;
-	end.layers = ShouldRender ? layers : NULL;
+	end.layerCount = ShouldRender ? layer_count : 0;
+	end.layers = (ShouldRender && layer_count) ? layers : NULL;
 	xrEndFrame( Session, &end );
 	
 	PanelUsed = false;
+	EyesSubmitted = false;
 	FrameBegun = false;
 	ShouldRender = false;
 }

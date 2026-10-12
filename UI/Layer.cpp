@@ -17,6 +17,8 @@ Layer::Layer( SDL_Rect *rect )
 	Enabled = true;
 	Visible = true;
 	Draggable = false;
+	XRScene = false;
+	XRSceneOnly = false;
 	UIScaleMode = Raptor::ScaleMode::DEFAULT;
 	
 	MouseIsWithin = false;
