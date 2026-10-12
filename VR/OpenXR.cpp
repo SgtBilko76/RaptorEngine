@@ -79,6 +79,7 @@ namespace
 	bool RecenterPending = true;
 	XrTime DisplayTime = 0;
 	float DisplayRefresh = 72.f;
+	bool PerfSettings = false;
 	
 	// Touch controller input.
 	XrActionSet ActionSet = XR_NULL_HANDLE;
@@ -88,7 +89,10 @@ namespace
 	XrSpace AimSpaces[ 2 ] = { XR_NULL_HANDLE, XR_NULL_HANDLE };
 	XR::HandState Hands[ 2 ];
 	
-	EyeSwapchain Eyes[ 2 ];
+	EyeSwapchain Eyes[ 3 ];  // left, right, menu panel
+	bool PanelUsed = false;
+	XrPosef AimPoses[ 2 ];
+	const float PanelDist = 1.8f, PanelWidth = 1.9f;  // meters
 	XrView Views[ 2 ];
 	XrCompositionLayerProjectionView LayerViews[ 2 ];
 	XR::EyeView EyeViews[ 2 ];
@@ -149,6 +153,11 @@ namespace
 		enabled.push_back( XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME );
 		if( HasExtension( props, "XR_FB_display_refresh_rate" ) )
 			enabled.push_back( "XR_FB_display_refresh_rate" );
+		if( HasExtension( props, XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME ) )
+		{
+			enabled.push_back( XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME );
+			PerfSettings = true;
+		}
 		
 		XrInstanceCreateInfoAndroidKHR android_info = { XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR };
 		android_info.applicationVM = vm;
@@ -343,11 +352,20 @@ namespace
 			enum_rates( Session, rate_count, &rate_count, rates.data() );
 			float best = 0.f;
 			for( size_t i = 0; i < rates.size(); i ++ )
-				if( (rates[ i ] <= 90.5f) && (rates[ i ] > best) )
+				if( (rates[ i ] <= 72.5f) && (rates[ i ] > best) )  // The engine draws each eye separately; 72 Hz is its realistic target.
 					best = rates[ i ];
 			if( best > 0.f )
 				request_rate( Session, best );
 			get_rate( Session, &DisplayRefresh );
+		}
+		
+		// Ask for the highest sustained CPU/GPU clocks.
+		PFN_xrPerfSettingsSetPerformanceLevelEXT set_level = NULL;
+		if( PerfSettings && XR_SUCCEEDED( xrGetInstanceProcAddr( Instance, "xrPerfSettingsSetPerformanceLevelEXT", (PFN_xrVoidFunction*) &set_level ) ) && set_level )
+		{
+			set_level( Session, XR_PERF_SETTINGS_DOMAIN_CPU_EXT, XR_PERF_SETTINGS_LEVEL_BOOST_EXT );
+			set_level( Session, XR_PERF_SETTINGS_DOMAIN_GPU_EXT, XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT );
+			printf( "OpenXR: CPU boost, GPU sustained high\n" );
 		}
 		return true;
 	}
@@ -383,11 +401,11 @@ namespace
 			gles_Disable( GL_FRAMEBUFFER_SRGB_EXT );
 		printf( "OpenXR: swapchain format 0x%X (sRGB write control %s)\n", (unsigned int) format, srgb_write_control ? "yes" : "no" );
 		
-		for( int e = 0; e < 2; e ++ )
+		for( int e = 0; e < 3; e ++ )
 		{
 			EyeSwapchain *eye = &Eyes[ e ];
-			eye->W = config_views[ e ].recommendedImageRectWidth;
-			eye->H = config_views[ e ].recommendedImageRectHeight;
+			eye->W = config_views[ e % 2 ].recommendedImageRectWidth;
+			eye->H = config_views[ e % 2 ].recommendedImageRectHeight;
 			
 			// Some runtime settings recommend heavy supersampling (e.g. 2800x2933); stay near native Quest 3 resolution.
 			double scale = std::min( 1., std::min( 2064. / eye->W, 2208. / eye->H ) );
@@ -536,6 +554,7 @@ namespace
 			if( XR_SUCCEEDED( xrLocateSpace( AimSpaces[ h ], AppSpace, DisplayTime, &loc ) )
 			&&  (loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) && (loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) )
 			{
+				AimPoses[ h ] = loc.pose;
 				ToEngine( loc.pose.position, hand->AimPos );
 				ToEngine( Rotate( loc.pose.orientation, 0.f, 0.f, -1.f ), hand->AimFwd );
 				ToEngine( Rotate( loc.pose.orientation, 0.f, 1.f, 0.f ), hand->AimUp );
@@ -621,7 +640,7 @@ bool XR::Init( int *eye_w, int *eye_h )
 
 void XR::Shutdown( void )
 {
-	for( int e = 0; e < 2; e ++ )
+	for( int e = 0; e < 3; e ++ )
 	{
 		EyeSwapchain *eye = &Eyes[ e ];
 		if( eye->FBOs.size() )
@@ -810,12 +829,27 @@ void XR::EndFrame( void )
 		return;
 	ReleaseEye( 0 );
 	ReleaseEye( 1 );
+	ReleasePanel();
 	
 	XrCompositionLayerProjection layer = { XR_TYPE_COMPOSITION_LAYER_PROJECTION };
 	layer.space = AppSpace;
 	layer.viewCount = 2;
 	layer.views = LayerViews;
-	const XrCompositionLayerBaseHeader *layers[ 1 ] = { (const XrCompositionLayerBaseHeader*) &layer };
+	
+	EyeSwapchain *panel = &Eyes[ 2 ];
+	XrCompositionLayerQuad quad = { XR_TYPE_COMPOSITION_LAYER_QUAD };
+	quad.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT;
+	quad.space = AppSpace;
+	quad.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+	quad.subImage.swapchain = panel->Handle;
+	quad.subImage.imageRect.extent.width = panel->W;
+	quad.subImage.imageRect.extent.height = panel->H;
+	quad.pose.orientation.w = 1.f;
+	quad.pose.position.z = - PanelDist;
+	quad.size.width = PanelWidth;
+	quad.size.height = PanelWidth * panel->H / (float) panel->W;
+	
+	const XrCompositionLayerBaseHeader *layers[ 1 ] = { PanelUsed ? (const XrCompositionLayerBaseHeader*) &quad : (const XrCompositionLayerBaseHeader*) &layer };
 	
 	XrFrameEndInfo end = { XR_TYPE_FRAME_END_INFO };
 	end.displayTime = DisplayTime;
@@ -824,8 +858,61 @@ void XR::EndFrame( void )
 	end.layers = ShouldRender ? layers : NULL;
 	xrEndFrame( Session, &end );
 	
+	PanelUsed = false;
 	FrameBegun = false;
 	ShouldRender = false;
+}
+
+
+unsigned int XR::AcquirePanel( void )
+{
+	EyeSwapchain *panel = &Eyes[ 2 ];
+	if( (! ShouldRender) || (panel->Handle == XR_NULL_HANDLE) )
+		return 0;
+	uint32_t index = 0;
+	XrSwapchainImageAcquireInfo acquire = { XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
+	if( XR_FAILED( xrAcquireSwapchainImage( panel->Handle, &acquire, &index ) ) )
+		return 0;
+	XrSwapchainImageWaitInfo wait = { XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
+	wait.timeout = XR_INFINITE_DURATION;
+	if( XR_FAILED( xrWaitSwapchainImage( panel->Handle, &wait ) ) )
+		return 0;
+	panel->Acquired = true;
+	PanelUsed = true;
+	return panel->FBOs[ index ];
+}
+
+
+void XR::ReleasePanel( void )
+{
+	EyeSwapchain *panel = &Eyes[ 2 ];
+	if( ! panel->Acquired )
+		return;
+	XrSwapchainImageReleaseInfo release = { XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
+	xrReleaseSwapchainImage( panel->Handle, &release );
+	panel->Acquired = false;
+}
+
+
+bool XR::PanelPointer( int hand, int *x, int *y )
+{
+	hand = hand ? 1 : 0;
+	if( ! Hands[ hand ].AimValid )
+		return false;
+	const XrPosef &pose = AimPoses[ hand ];
+	XrVector3f dir = Rotate( pose.orientation, 0.f, 0.f, -1.f );
+	if( dir.z > -0.05f )
+		return false;
+	float t = (- PanelDist - pose.position.z) / dir.z;
+	if( t <= 0.f )
+		return false;
+	float hit_x = pose.position.x + dir.x * t;
+	float hit_y = pose.position.y + dir.y * t;
+	const EyeSwapchain *panel = &Eyes[ 2 ];
+	float panel_h = PanelWidth * panel->H / (float) panel->W;
+	*x = (int)( (hit_x / PanelWidth + 0.5f) * panel->W );
+	*y = (int)( (0.5f - hit_y / panel_h) * panel->H );
+	return true;
 }
 
 

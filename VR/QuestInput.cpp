@@ -26,9 +26,9 @@ namespace
 {
 	enum
 	{
-		AXIS_RIGHT_X = 0,  // yaw
-		AXIS_RIGHT_Y,      // pitch
-		AXIS_LEFT_X,       // roll
+		AXIS_STEER_X = 0,  // left stick X: yaw
+		AXIS_STEER_Y,      // left stick Y: pitch
+		AXIS_ROLL,         // right stick X: roll
 		AXIS_COUNT
 	};
 	
@@ -39,7 +39,7 @@ namespace
 		BUTTON_RIGHT_GRIP, BUTTON_LEFT_GRIP,
 		BUTTON_RIGHT_STICK, BUTTON_LEFT_STICK,
 		BUTTON_MENU,
-		BUTTON_LEFT_STICK_UP, BUTTON_LEFT_STICK_DOWN,
+		BUTTON_THROTTLE_UP, BUTTON_THROTTLE_DOWN,  // right stick up/down
 		BUTTON_COUNT
 	};
 	
@@ -129,30 +129,6 @@ namespace
 		event.key.state = SDL_RELEASED;
 		SDL_PushEvent( &event );
 	}
-	
-	
-	// Where the right controller points on the head-locked UI, in eye-framebuffer pixels.
-	bool PointerPixel( const XR::HandState *hand, int *px, int *py )
-	{
-		HeadState *head = &(Raptor::Game->Head);
-		if( !( hand->AimValid && head->EyeR ) )
-			return false;
-		
-		const Pos3D *view = &(head->Current);
-		Vec3D aim( hand->AimFwd[0], hand->AimFwd[1], hand->AimFwd[2] );
-		double f = aim.Dot( view->Fwd );
-		if( f < 0.1 )
-			return false;
-		double tan_x = aim.Dot( view->Right ) / f;
-		double tan_y = aim.Dot( view->Up ) / f;
-		
-		// The UI is centered on the eye's optical axis (see Framebuffer::Setup2D).
-		const XR::EyeView *eye = XR::Eye( 1 );
-		int w = head->EyeR->W, h = head->EyeR->H;
-		*px = (int)( w / 2. + tan_x * w / (eye->TanRight - eye->TanLeft) );
-		*py = (int)( h / 2. - tan_y * h / (eye->TanUp - eye->TanDown) );
-		return true;
-	}
 }
 
 
@@ -170,9 +146,10 @@ void QuestInput::Update( void )
 		if( Joystick )
 		{
 			// SDL convention: stick up is negative (the game binds pitch like a flight stick).
-			SDL_JoystickSetVirtualAxis( Joystick, AXIS_RIGHT_X, AxisValue( right->StickX ) );
-			SDL_JoystickSetVirtualAxis( Joystick, AXIS_RIGHT_Y, AxisValue( - right->StickY ) );
-			SDL_JoystickSetVirtualAxis( Joystick, AXIS_LEFT_X,  AxisValue( left->StickX ) );
+			// Left stick flies (pitch/yaw), right stick does roll and throttle.
+			SDL_JoystickSetVirtualAxis( Joystick, AXIS_STEER_X, AxisValue( left->StickX ) );
+			SDL_JoystickSetVirtualAxis( Joystick, AXIS_STEER_Y, AxisValue( - left->StickY ) );
+			SDL_JoystickSetVirtualAxis( Joystick, AXIS_ROLL,    AxisValue( right->StickX ) );
 			SDL_JoystickSetVirtualButton( Joystick, BUTTON_A, right->ButtonLower );
 			SDL_JoystickSetVirtualButton( Joystick, BUTTON_B, right->ButtonUpper );
 			SDL_JoystickSetVirtualButton( Joystick, BUTTON_X, left->ButtonLower );
@@ -184,8 +161,8 @@ void QuestInput::Update( void )
 			SDL_JoystickSetVirtualButton( Joystick, BUTTON_RIGHT_STICK, right->StickClick );
 			SDL_JoystickSetVirtualButton( Joystick, BUTTON_LEFT_STICK,  left->StickClick );
 			SDL_JoystickSetVirtualButton( Joystick, BUTTON_MENU, left->Menu );
-			SDL_JoystickSetVirtualButton( Joystick, BUTTON_LEFT_STICK_UP,   left->StickY >  0.5f );
-			SDL_JoystickSetVirtualButton( Joystick, BUTTON_LEFT_STICK_DOWN, left->StickY < -0.5f );
+			SDL_JoystickSetVirtualButton( Joystick, BUTTON_THROTTLE_UP,   right->StickY >  0.5f );
+			SDL_JoystickSetVirtualButton( Joystick, BUTTON_THROTTLE_DOWN, right->StickY < -0.5f );
 		}
 	}
 	
@@ -216,7 +193,7 @@ void QuestInput::Update( void )
 	if( mouse->ShowCursor )
 	{
 		int px = 0, py = 0;
-		bool pointing = PointerPixel( right, &px, &py );
+		bool pointing = XR::PanelPointer( 1, &px, &py );
 		int x = px - mouse->OffsetX, y = py - mouse->OffsetY;
 		if( pointing && ((px != mouse->X) || (py != mouse->Y)) )
 			PushMouseMotion( x, y );

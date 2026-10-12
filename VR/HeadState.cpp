@@ -234,7 +234,25 @@ void HeadState::Draw( void )
 	
 	double frame_time = Raptor::Game->FrameTime;
 	Framebuffer *eyes[ 2 ] = { EyeL, EyeR };
-	for( int e = 0; e < 2; e ++ )
+	
+	// Menus (mouse cursor shown) go on a flat world-fixed panel instead of following the head.
+	unsigned int panel_fbo = Raptor::Game->Mouse.ShowCursor ? XR::AcquirePanel() : 0;
+	if( panel_fbo )
+	{
+		Framebuffer *fb = EyeR;
+		fb->FramebufferHandle = panel_fbo;
+		fb->UseFrustum = false;
+		Raptor::Game->Cam.Offset.SetPos( 0., 0., 0. );
+		Raptor::Game->Cam.Offset.SetUpVec( 0., 1., 0. );
+		Raptor::Game->Cam.Offset.SetFwdVec( 1., 0., 0. );
+		Raptor::Game->Gfx.DrawTo = fb;
+		Raptor::Game->Gfx.SelectDefaultFramebuffer();
+		Raptor::Game->Draw();
+		fb->UseFrustum = true;
+		XR::ReleasePanel();
+	}
+	
+	for( int e = 0; panel_fbo ? false : (e < 2); e ++ )
 	{
 		Framebuffer *fb = eyes[ e ];
 		unsigned int fbo = XR::AcquireEye( e );

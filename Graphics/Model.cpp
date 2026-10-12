@@ -803,7 +803,12 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 					if( bitangent_loc >= 0 )
 						glEnableVertexAttribArray( bitangent_loc );
 					
+#ifdef __ANDROID__
+					mtl_iter->second->Arrays.BindVBO();
+					glVertexPointer( 3, GL_FLOAT, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.FloatVertices() ) );
+#else
 					glVertexPointer( 3, GL_DOUBLE, 0, mtl_iter->second->Arrays.VertexArray );
+#endif
 					
 					if( ! wireframe )
 					{
@@ -822,17 +827,17 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 						if( use_bumpmap && mtl_iter->second->BumpMap.Frames.size() )
 						{
 							glBindTexture( GL_TEXTURE_2D, mtl_iter->second->BumpMap.CurrentFrame() );
-							glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.TangentArray );
-							glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.BitangentArray );
+							glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.TangentArray ) );
+							glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.BitangentArray ) );
 							Raptor::Game->ShaderMgr.Set1f( "BumpScale", mtl_iter->second->BumpScale );
 						}
 						else
 						{
 							glBindTexture( GL_TEXTURE_2D, 0 );
 							if( tangent_loc >= 0 )
-								glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.NormalArray );
+								glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.NormalArray ) );
 							if( bitangent_loc >= 0 )
-								glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.NormalArray );
+								glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.NormalArray ) );
 							Raptor::Game->ShaderMgr.Set1f( "BumpScale", 0. );
 						}
 						
@@ -864,11 +869,12 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 				{
 					glBindTexture( GL_TEXTURE_2D, mtl_iter->second->Texture.CurrentFrame() );
 					
-					glTexCoordPointer( 2, GL_FLOAT, 0, mtl_iter->second->Arrays.TexCoordArray );
-					glNormalPointer( GL_FLOAT, 0, mtl_iter->second->Arrays.NormalArray );
+					glTexCoordPointer( 2, GL_FLOAT, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.TexCoordArray ) );
+					glNormalPointer( GL_FLOAT, 0, mtl_iter->second->Arrays.VBOPointer( mtl_iter->second->Arrays.NormalArray ) );
 				}
 				
 				glDrawArrays( GL_TRIANGLES, 0, mtl_iter->second->Arrays.VertexCount );
+				mtl_iter->second->Arrays.UnbindVBO();
 				
 				// FIXME: Pull this out of the loop, or enable different shader per material?
 				if( tangent_loc >= 0 )
@@ -947,6 +953,10 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 						if( bitangent_loc >= 0 )
 							glEnableVertexAttribArray( bitangent_loc );
 						
+#ifdef __ANDROID__
+						array_iter->second->BindVBO();
+#endif
+						
 						if( ! wireframe )
 						{
 							if( ! Materials[ array_iter->first ] )
@@ -968,17 +978,17 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 							if( use_bumpmap && mtl->BumpMap.Frames.size() )
 							{
 								glBindTexture( GL_TEXTURE_2D, mtl->BumpMap.CurrentFrame() );
-								glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, array_iter->second->TangentArray );
-								glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, array_iter->second->BitangentArray );
+								glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, array_iter->second->VBOPointer( array_iter->second->TangentArray ) );
+								glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, array_iter->second->VBOPointer( array_iter->second->BitangentArray ) );
 								Raptor::Game->ShaderMgr.Set1f( "BumpScale", mtl->BumpScale );
 							}
 							else
 							{
 								glBindTexture( GL_TEXTURE_2D, 0 );
 								if( tangent_loc >= 0 )
-									glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, array_iter->second->NormalArray );
+									glVertexAttribPointer( tangent_loc,   3, GL_FLOAT, GL_TRUE, 0, array_iter->second->VBOPointer( array_iter->second->NormalArray ) );
 								if( bitangent_loc >= 0 )
-									glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, array_iter->second->NormalArray );
+									glVertexAttribPointer( bitangent_loc, 3, GL_FLOAT, GL_TRUE, 0, array_iter->second->VBOPointer( array_iter->second->NormalArray ) );
 								Raptor::Game->ShaderMgr.Set1f( "BumpScale", 0. );
 							}
 							
@@ -998,7 +1008,11 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 							glActiveTexture( GL_TEXTURE0 + 0 ); // Texture
 						}
 						
+#ifdef __ANDROID__
+					glVertexPointer( 3, GL_FLOAT, 0, array_iter->second->VBOPointer( array_iter->second->FloatVertices() ) );
+#else
 						glVertexPointer( 3, GL_DOUBLE, 0, array_iter->second->VertexArray );
+#endif
 					}
 					else
 					{
@@ -1014,11 +1028,12 @@ void Model::Draw( const Pos3D *pos, const std::set<std::string> *object_names, c
 							Materials[ array_iter->first ] = new ModelMaterial();
 						glBindTexture( GL_TEXTURE_2D, Materials[ array_iter->first ]->Texture.CurrentFrame() );
 						
-						glTexCoordPointer( 2, GL_FLOAT, 0, array_iter->second->TexCoordArray );
-						glNormalPointer( GL_FLOAT, 0, array_iter->second->NormalArray );
+						glTexCoordPointer( 2, GL_FLOAT, 0, array_iter->second->VBOPointer( array_iter->second->TexCoordArray ) );
+						glNormalPointer( GL_FLOAT, 0, array_iter->second->VBOPointer( array_iter->second->NormalArray ) );
 					}
 					
 					glDrawArrays( GL_TRIANGLES, 0, array_iter->second->VertexCount );
+					array_iter->second->UnbindVBO();
 					
 					// FIXME: Pull this out of the loop, or enable different shader per material?
 					if( tangent_loc >= 0 )
@@ -1457,6 +1472,8 @@ void Model::MarkBlockMap( std::map< uint64_t, std::set<const GLdouble*> > *block
 
 void Model::Move( double fwd, double up, double right )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( !( fwd || up || right ) )
 		return;
 	
@@ -1501,6 +1518,8 @@ void Model::ScaleBy( double scale )
 
 void Model::ScaleBy( double fwd_scale, double up_scale, double right_scale )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( (fwd_scale == 1.) && (up_scale == 1.) && (right_scale == 1.) )
 		return;
 	
@@ -1797,6 +1816,116 @@ ModelFace::~ModelFace()
 // ---------------------------------------------------------------------------
 
 
+static std::vector<GLuint> DeadVBOs;
+
+
+bool ModelArrays::BindVBO( void )
+{
+#ifdef __ANDROID__
+	if( DeadVBOs.size() )
+	{
+		glDeleteBuffers( DeadVBOs.size(), DeadVBOs.data() );
+		DeadVBOs.clear();
+	}
+	if( ! (VertexCount && VertexArray && TexCoordArray && NormalArray) )
+		return false;
+	
+	if( VBO && (VBOSource == VertexArray) && (VBOCount == VertexCount) && (VBOGeneration == VertexGeneration) )
+	{
+		glBindBuffer( GL_ARRAY_BUFFER, VBO );
+		VBOBound = true;
+		return true;
+	}
+	
+	// Pack every per-vertex array into one static buffer: positions, texcoords, normals, tangents, bitangents.
+	size_t n = VertexCount;
+	size_t floats = n * (3 + 2 + 3) + (TangentArray ? n * 3 : 0) + (BitangentArray ? n * 3 : 0);
+	std::vector<GLfloat> data( floats );
+	const GLfloat *pos = FloatVertices();
+	memcpy( &data[ 0 ], pos, n * 3 * sizeof(GLfloat) );
+	VBOTexOffset = n * 3 * sizeof(GLfloat);
+	memcpy( ((char*) &data[ 0 ]) + VBOTexOffset, TexCoordArray, n * 2 * sizeof(GLfloat) );
+	VBONormalOffset = VBOTexOffset + n * 2 * sizeof(GLfloat);
+	memcpy( ((char*) &data[ 0 ]) + VBONormalOffset, NormalArray, n * 3 * sizeof(GLfloat) );
+	size_t next = VBONormalOffset + n * 3 * sizeof(GLfloat);
+	VBOTangentOffset = VBOBitangentOffset = 0;
+	if( TangentArray )
+	{
+		VBOTangentOffset = next;
+		memcpy( ((char*) &data[ 0 ]) + next, TangentArray, n * 3 * sizeof(GLfloat) );
+		next += n * 3 * sizeof(GLfloat);
+	}
+	if( BitangentArray )
+	{
+		VBOBitangentOffset = next;
+		memcpy( ((char*) &data[ 0 ]) + next, BitangentArray, n * 3 * sizeof(GLfloat) );
+		next += n * 3 * sizeof(GLfloat);
+	}
+	
+	if( ! VBO )
+		glGenBuffers( 1, &VBO );
+	glBindBuffer( GL_ARRAY_BUFFER, VBO );
+	glBufferData( GL_ARRAY_BUFFER, next, &data[ 0 ], GL_STATIC_DRAW );
+	VBOSource = VertexArray;
+	VBOCount = VertexCount;
+	VBOGeneration = VertexGeneration;
+	VBOBound = true;
+	return true;
+#else
+	return false;
+#endif
+}
+
+
+void ModelArrays::UnbindVBO( void )
+{
+	if( ! VBOBound )
+		return;
+	glBindBuffer( GL_ARRAY_BUFFER, 0 );
+	VBOBound = false;
+}
+
+
+const void *ModelArrays::VBOPointer( const void *client_array ) const
+{
+	if( ! VBOBound )
+		return client_array;
+	if( client_array == FloatVertexArray )
+		return (const void*) 0;
+	if( client_array == TexCoordArray )
+		return (const void*) VBOTexOffset;
+	if( client_array == NormalArray )
+		return (const void*) VBONormalOffset;
+	if( TangentArray && (client_array == TangentArray) )
+		return (const void*) VBOTangentOffset;
+	if( BitangentArray && (client_array == BitangentArray) )
+		return (const void*) VBOBitangentOffset;
+	return client_array;
+}
+
+
+unsigned int ModelArrays::VertexGeneration = 1;
+
+
+const GLfloat *ModelArrays::FloatVertices( void )
+{
+	if( FloatVertexArray && (FloatSource == VertexArray) && (FloatCount == VertexCount) && (FloatGeneration == VertexGeneration) )
+		return FloatVertexArray;
+	if( FloatCount != VertexCount )
+	{
+		if( FloatVertexArray )
+			free( FloatVertexArray );
+		FloatVertexArray = (GLfloat*) malloc( VertexCount * 3 * sizeof(GLfloat) + 1 );
+	}
+	for( size_t i = 0; i < VertexCount * 3; i ++ )
+		FloatVertexArray[ i ] = VertexArray[ i ];
+	FloatSource = VertexArray;
+	FloatCount = VertexCount;
+	FloatGeneration = VertexGeneration;
+	return FloatVertexArray;
+}
+
+
 ModelArrays::ModelArrays( void )
 {
 	VertexCount = 0;
@@ -1809,6 +1938,16 @@ ModelArrays::ModelArrays( void )
 	SmoothGroups = NULL;
 	Allocated = false;
 	AllocatedWorldSpace = false;
+	FloatVertexArray = NULL;
+	FloatSource = NULL;
+	FloatCount = 0;
+	FloatGeneration = 0;
+	VBO = 0;
+	VBOSource = NULL;
+	VBOCount = 0;
+	VBOGeneration = 0;
+	VBOBound = false;
+	VBOTexOffset = VBONormalOffset = VBOTangentOffset = VBOBitangentOffset = 0;
 }
 
 
@@ -1824,6 +1963,16 @@ ModelArrays::ModelArrays( const ModelArrays &other )
 	SmoothGroups = NULL;
 	Allocated = false;
 	AllocatedWorldSpace = false;
+	FloatVertexArray = NULL;
+	FloatSource = NULL;
+	FloatCount = 0;
+	FloatGeneration = 0;
+	VBO = 0;
+	VBOSource = NULL;
+	VBOCount = 0;
+	VBOGeneration = 0;
+	VBOBound = false;
+	VBOTexOffset = VBONormalOffset = VBOTangentOffset = VBOBitangentOffset = 0;
 	
 	BecomeInstance( &other );
 }
@@ -1841,6 +1990,16 @@ ModelArrays::ModelArrays( const ModelArrays *other )
 	SmoothGroups = NULL;
 	Allocated = false;
 	AllocatedWorldSpace = false;
+	FloatVertexArray = NULL;
+	FloatSource = NULL;
+	FloatCount = 0;
+	FloatGeneration = 0;
+	VBO = 0;
+	VBOSource = NULL;
+	VBOCount = 0;
+	VBOGeneration = 0;
+	VBOBound = false;
+	VBOTexOffset = VBONormalOffset = VBOTangentOffset = VBOBitangentOffset = 0;
 	
 	BecomeInstance( other );
 }
@@ -1855,6 +2014,18 @@ ModelArrays::~ModelArrays()
 void ModelArrays::Clear( void )
 {
 	VertexCount = 0;
+	
+	if( FloatVertexArray )
+		free( FloatVertexArray );
+	FloatVertexArray = NULL;
+	FloatSource = NULL;
+	FloatCount = 0;
+	if( VBO )
+		DeadVBOs.push_back( VBO );  // Deleted later on the render thread.
+	VBO = 0;
+	VBOSource = NULL;
+	VBOCount = 0;
+	VBOBound = false;
 	
 	if( Allocated )
 	{
@@ -1896,6 +2067,8 @@ void ModelArrays::BecomeCopy( void )
 
 void ModelArrays::BecomeCopy( const ModelArrays *other )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( (this == other) && Allocated )
 		return;
 	
@@ -1998,6 +2171,8 @@ void ModelArrays::BecomeInstance( const ModelArrays *other )
 
 void ModelArrays::Resize( size_t vertex_count )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( vertex_count == VertexCount )
 		;
 	else if( vertex_count )
@@ -2028,6 +2203,8 @@ void ModelArrays::Resize( size_t vertex_count )
 
 void ModelArrays::AddFaces( std::vector<ModelFace> &faces )
 {
+	ModelArrays::VertexGeneration ++;
+
 	std::vector<Vec3D> vertices;
 	std::vector<Vec2D> tex_coords;
 	std::vector<Vec3D> normals;
@@ -2133,6 +2310,8 @@ void ModelArrays::AddFaces( std::vector<ModelFace> &faces )
 
 void ModelArrays::RemoveFace( size_t face_index )
 {
+	ModelArrays::VertexGeneration ++;
+
 	size_t first_vertex = face_index * 3;
 	if( (first_vertex + 2) >= VertexCount )
 		return;
@@ -2211,6 +2390,8 @@ void ModelArrays::RemoveFace( size_t face_index )
 
 void ModelArrays::CalculateNormals( size_t start_vertex )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( ! Allocated )
 		BecomeCopy( this );
 	
@@ -2242,6 +2423,8 @@ void ModelArrays::CalculateNormals( size_t start_vertex )
 
 void ModelArrays::ReverseNormals( size_t start_vertex )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( ! Allocated )
 		BecomeCopy( this );
 	
@@ -2259,6 +2442,8 @@ void ModelArrays::ReverseNormals( size_t start_vertex )
 
 void ModelArrays::SmoothNormals( size_t start_vertex )
 {
+	ModelArrays::VertexGeneration ++;
+
 	if( ! Allocated )
 		BecomeCopy( this );
 	
@@ -2306,6 +2491,8 @@ void ModelArrays::SmoothNormals( size_t start_vertex )
 
 void ModelArrays::CalculateTangents( size_t start_vertex )
 {
+	ModelArrays::VertexGeneration ++;
+
 	// Remain perpendicular to the normal along curved surfaces.
 	Pos3D tbn;
 	
@@ -2357,6 +2544,8 @@ void ModelArrays::CalculateTangents( size_t start_vertex )
 
 void ModelArrays::Optimize( double vertex_tolerance, double normal_tolerance, double dot_tolerance )
 {
+	ModelArrays::VertexGeneration ++;
+
 	// 1. For each (unused) triangle, find others that share an edge and are on the same plane (within reason).
 	// 2. Continue recurisvely off every found triangle.
 	// 3. Any edge that is NOT shared with any other triangle of the group is on the outer edge of the shape.

@@ -48,6 +48,13 @@ namespace XR
 	void ReleaseEye( int eye );
 	void EndFrame( void );
 	
+	// World-fixed flat panel (menus): same pixel size as an eye. If acquired this frame, EndFrame shows
+	// only the panel (as a quad layer in front of the recentered view) instead of the stereo eyes.
+	unsigned int AcquirePanel( void );
+	void ReleasePanel( void );
+	// Where the hand's aim ray hits the panel, in panel pixels (0,0 = top left).
+	bool PanelPointer( int hand, int *x, int *y );
+	
 	// Touch controllers (0 = left, 1 = right), updated by BeginFrame.
 	const HandState *Hand( int hand );
 	void Vibrate( int hand, float amplitude, float seconds );

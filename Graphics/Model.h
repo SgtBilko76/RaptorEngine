@@ -114,6 +114,25 @@ public:
 	int *SmoothGroups;
 	bool Allocated, AllocatedWorldSpace;
 	
+	// Single-precision copy of VertexArray for OpenGL ES (gl4es can't draw GL_DOUBLE arrays directly).
+	GLfloat *FloatVertexArray;
+	const GLdouble *FloatSource;
+	size_t FloatCount;
+	unsigned int FloatGeneration;
+	static unsigned int VertexGeneration;  // Bumped whenever any model's vertices may have changed.
+	const GLfloat *FloatVertices( void );
+	
+	// Static vertex buffer (OpenGL ES): uploading client arrays every draw is far too slow on mobile.
+	GLuint VBO;
+	const GLdouble *VBOSource;
+	size_t VBOCount;
+	unsigned int VBOGeneration;
+	bool VBOBound;
+	size_t VBOTexOffset, VBONormalOffset, VBOTangentOffset, VBOBitangentOffset;
+	bool BindVBO( void );
+	void UnbindVBO( void );
+	const void *VBOPointer( const void *client_array ) const;
+	
 	ModelArrays( void );
 	ModelArrays( const ModelArrays &other );
 	ModelArrays( const ModelArrays *other );
