@@ -21,6 +21,14 @@ namespace XR
 		double TanLeft, TanRight, TanDown, TanUp;
 	};
 	
+	struct HandState
+	{
+		float Trigger, Grip, StickX, StickY;  // 0..1, sticks -1..1 (up/right positive)
+		bool StickClick, ButtonLower, ButtonUpper, Menu;  // lower = A/X, upper = B/Y, menu = left Menu button
+		bool AimValid;
+		double AimPos[ 3 ], AimFwd[ 3 ], AimUp[ 3 ];  // engine coordinates, tracking space
+	};
+	
 	bool Init( int *eye_w, int *eye_h );
 	void Shutdown( void );
 	bool Initialized( void );
@@ -39,6 +47,10 @@ namespace XR
 	unsigned int AcquireEye( int eye );
 	void ReleaseEye( int eye );
 	void EndFrame( void );
+	
+	// Touch controllers (0 = left, 1 = right), updated by BeginFrame.
+	const HandState *Hand( int hand );
+	void Vibrate( int hand, float amplitude, float seconds );
 	
 	// Re-anchors the tracking origin to the current head position and yaw.
 	void Recenter( void );

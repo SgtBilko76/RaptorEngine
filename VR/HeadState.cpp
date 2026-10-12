@@ -9,6 +9,7 @@
 
 #ifdef XWR_OPENXR
 	#include "OpenXR.h"
+	#include "QuestInput.h"
 #endif
 
 
@@ -217,7 +218,9 @@ void HeadState::Draw( void )
 		return;
 	}
 	
-	if( ! XR::BeginFrame() )
+	bool render = XR::BeginFrame();
+	QuestInput::Update();
+	if( ! render )
 	{
 		// Session not visible (or not running yet): keep the game ticking without drawing.
 		XR::EndFrame();

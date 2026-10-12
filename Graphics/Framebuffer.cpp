@@ -287,6 +287,20 @@ void Framebuffer::Setup2D( double y1, double y2 )
 
 void Framebuffer::Setup2D( double x1, double y1, double x2, double y2 )
 {
+	if( UseFrustum && (FrustumRight > FrustumLeft) && (FrustumUp > FrustumDown) )
+	{
+		// OpenXR eyes have asymmetric frustums: center the 2D UI on the eye's optical axis (not the image center),
+		// so both eyes see it straight ahead and it fuses at a comfortable distance.
+		double axis_x = W * (-FrustumLeft) / (FrustumRight - FrustumLeft);
+		double axis_y = H * FrustumUp / (FrustumUp - FrustumDown);
+		double shift_x = (axis_x - W / 2.) * (x2 - x1) / W;
+		double shift_y = (axis_y - H / 2.) * (y2 - y1) / H;
+		x1 -= shift_x;
+		x2 -= shift_x;
+		y1 -= shift_y;
+		y2 -= shift_y;
+	}
+	
 	glDisable( GL_DEPTH_TEST );
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity();
