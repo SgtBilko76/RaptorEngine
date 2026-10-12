@@ -89,8 +89,9 @@ namespace
 			return NULL;
 		if( layer->Selected && layer->Selected->Visible )
 		{
+			// Skip always-focused chat inputs (e.g. the lobby chat line), they never get a keyboard.
 			TextBox *box = dynamic_cast<TextBox*>( layer->Selected );
-			if( box )
+			if( box && (box->ReturnDeselects || box->EscDeselects) )
 				return box;
 			if( TextBox *inner = FindSelected( layer->Selected ) )
 				return inner;
@@ -250,7 +251,10 @@ bool VirtualKeyboard::Visible( void )
 void VirtualKeyboard::Draw( void )
 {
 	if( ! Visible() )
+	{
+		BoxX1 = BoxX2 = 0;
 		return;
+	}
 	Layout();
 	
 	Font *font = Raptor::Game->Res.GetFont( "Verdana.ttf", 22 );
@@ -282,12 +286,12 @@ bool VirtualKeyboard::HandleEvent( SDL_Event *event )
 		return false;
 	if( event->button.button != SDL_BUTTON_LEFT )
 		return false;
-	if( ! Visible() )
+	if( ! Visible() || (BoxX2 <= BoxX1) )
 	{
 		PressedRow = PressedKey = -1;
 		return false;
 	}
-	Layout();
+	// Uses the layout from the last Draw: Gfx.W/H only match the menu panel while it is being drawn.
 	
 	int x = event->button.x, y = event->button.y;
 	bool inside = (x >= BoxX1) && (x <= BoxX2) && (y >= BoxY1) && (y <= BoxY2);
